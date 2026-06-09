@@ -26,6 +26,7 @@ export async function listBots() {
     supabase
       .from("bots")
       .select("bot_id, on_chain_bot_id, operator_address, manifest_uri, stake_amount_raw, status, chain, registered_at, registered_block")
+      .in("status", ["active", "paused"]) // hide withdrawn + slashed from main view
       .order("chain", { ascending: true }) // 'base' sorts before 'baseSepolia'
       .order("registered_at", { ascending: false })
       .limit(200),
