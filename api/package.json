@@ -15,9 +15,9 @@
   "private": "true",
   "dependencies": {
     "@hono/node-server": "^2.0.4",
+    "@supabase/supabase-js": "^2.108.0",
     "dotenv": "^17.4.2",
     "hono": "^4.12.25",
-    "pg": "^8.21.0",
     "viem": "^2.52.2",
     "x402-hono": "^1.2.0"
   },
