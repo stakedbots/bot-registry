@@ -20,8 +20,9 @@ async function fail(op, error) {
 }
 
 export async function listBots() {
-  // 3 round-trips: bots + active wallets + missions. Acceptable for MVP scale.
-  const [bots, wallets, missions] = await Promise.all([
+  // Free endpoint — light summary including activity counts. The full detail
+  // (recent transfers, events) stays paywalled.
+  const [bots, wallets, missions, transfers] = await Promise.all([
     supabase
       .from("bots")
       .select("bot_id, on_chain_bot_id, operator_address, manifest_uri, stake_amount_raw, status, chain, registered_at, registered_block")
@@ -30,40 +31,63 @@ export async function listBots() {
       .limit(200),
     supabase.from("bot_wallets").select("bot_id").is("unlinked_at", null),
     supabase.from("missions").select("bot_id"),
+    supabase.from("wallet_transfers").select("bot_id, amount_usd, block_timestamp"),
   ]);
   if (bots.error) await fail("listBots:bots", bots.error);
   if (wallets.error) await fail("listBots:wallets", wallets.error);
   if (missions.error) await fail("listBots:missions", missions.error);
+  if (transfers.error) await fail("listBots:transfers", transfers.error);
 
   const wCount = new Map();
   for (const w of wallets.data) wCount.set(String(w.bot_id), (wCount.get(String(w.bot_id)) || 0) + 1);
   const mCount = new Map();
   for (const m of missions.data) mCount.set(String(m.bot_id), (mCount.get(String(m.bot_id)) || 0) + 1);
 
-  return bots.data.map((b) => ({
-    bot_id: String(b.bot_id),
-    on_chain_bot_id: String(b.on_chain_bot_id),
-    operator_address: b.operator_address,
-    manifest_uri: b.manifest_uri,
-    stake_amount_raw: b.stake_amount_raw,
-    stake_amount_usdc: toUsdc(b.stake_amount_raw),
-    status: b.status,
-    chain: b.chain,
-    registered_at: b.registered_at,
-    registered_block: Number(b.registered_block),
-    wallets_count: wCount.get(String(b.bot_id)) || 0,
-    missions_count: mCount.get(String(b.bot_id)) || 0,
-  }));
+  // Aggregate transfer activity per bot in a single pass.
+  const tStats = new Map(); // bot_id → { count, volumeUsd, lastAt }
+  for (const t of transfers.data) {
+    const key = String(t.bot_id);
+    const cur = tStats.get(key) || { count: 0, volumeUsd: 0, lastAt: null };
+    cur.count += 1;
+    cur.volumeUsd += Math.abs(Number(t.amount_usd ?? 0));
+    if (!cur.lastAt || t.block_timestamp > cur.lastAt) cur.lastAt = t.block_timestamp;
+    tStats.set(key, cur);
+  }
+
+  return bots.data.map((b) => {
+    const ts = tStats.get(String(b.bot_id)) || { count: 0, volumeUsd: 0, lastAt: null };
+    return {
+      bot_id: String(b.bot_id),
+      on_chain_bot_id: String(b.on_chain_bot_id),
+      operator_address: b.operator_address,
+      manifest_uri: b.manifest_uri,
+      stake_amount_raw: b.stake_amount_raw,
+      stake_amount_usdc: toUsdc(b.stake_amount_raw),
+      status: b.status,
+      chain: b.chain,
+      registered_at: b.registered_at,
+      registered_block: Number(b.registered_block),
+      wallets_count: wCount.get(String(b.bot_id)) || 0,
+      missions_count: mCount.get(String(b.bot_id)) || 0,
+      transfers_count: ts.count,
+      volume_usd: Number(ts.volumeUsd.toFixed(2)),
+      last_transfer_at: ts.lastAt,
+    };
+  });
 }
 
 export async function getBot(botId) {
-  const { data, error } = await supabase
-    .from("bots")
-    .select("bot_id, on_chain_bot_id, operator_address, manifest_uri, manifest_hash, stake_amount_raw, status, chain, registered_at, registered_block, registered_tx")
-    .eq("bot_id", botId)
-    .maybeSingle();
-  if (error) await fail("getBot", error);
-  if (!data) return null;
+  const [main, tStats] = await Promise.all([
+    supabase
+      .from("bots")
+      .select("bot_id, on_chain_bot_id, operator_address, manifest_uri, manifest_hash, stake_amount_raw, status, chain, registered_at, registered_block, registered_tx")
+      .eq("bot_id", botId)
+      .maybeSingle(),
+    getBotTransfersStats(botId),
+  ]);
+  if (main.error) await fail("getBot", main.error);
+  if (!main.data) return null;
+  const data = main.data;
   return {
     bot_id: String(data.bot_id),
     on_chain_bot_id: String(data.on_chain_bot_id),
@@ -77,6 +101,9 @@ export async function getBot(botId) {
     registered_at: data.registered_at,
     registered_block: Number(data.registered_block),
     registered_tx: data.registered_tx,
+    transfers_count: tStats.transfers_count,
+    volume_usd: tStats.volume_usd,
+    last_transfer_at: tStats.last_transfer_at,
   };
 }
 
@@ -180,14 +207,19 @@ export async function getBotTransfers(botId, { limit = 50 } = {}) {
 export async function getBotTransfersStats(botId) {
   const { data, error } = await supabase
     .from("wallet_transfers")
-    .select("amount_raw, direction, block_timestamp")
+    .select("amount_usd, direction, block_timestamp")
     .eq("bot_id", botId);
   if (error) await fail("getBotTransfersStats", error);
   const rows = data || [];
+  let volumeUsd = 0;
+  let lastAt = null;
+  for (const r of rows) {
+    volumeUsd += Math.abs(Number(r.amount_usd ?? 0));
+    if (!lastAt || r.block_timestamp > lastAt) lastAt = r.block_timestamp;
+  }
   return {
     transfers_count: rows.length,
-    last_transfer_at: rows.length
-      ? rows.reduce((acc, r) => (r.block_timestamp > acc ? r.block_timestamp : acc), rows[0].block_timestamp)
-      : null,
+    volume_usd: Number(volumeUsd.toFixed(2)),
+    last_transfer_at: lastAt,
   };
 }

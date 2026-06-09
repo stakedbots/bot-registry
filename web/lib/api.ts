@@ -23,6 +23,9 @@ export type BotListEntry = {
   registered_block: number;
   wallets_count: number;
   missions_count: number;
+  transfers_count: number;
+  volume_usd: number;
+  last_transfer_at: string | null;
 };
 
 export type BotOverview = BotListEntry & {

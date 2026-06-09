@@ -3,7 +3,7 @@ import { listBots, apiUrl } from "@/lib/api";
 import {
   shortAddr,
   fmtUsdc,
-  fmtDate,
+  fmtRelative,
   statusBadgeClass,
   chainBadge,
 } from "@/lib/format";
@@ -113,10 +113,10 @@ export default async function HomePage() {
                   <th className="text-left px-4 py-3 font-medium">Operator</th>
                   <th className="text-right px-4 py-3 font-medium">Stake</th>
                   <th className="text-center px-4 py-3 font-medium">Status</th>
-                  <th className="text-right px-4 py-3 font-medium">Wallets</th>
-                  <th className="text-right px-4 py-3 font-medium">Missions</th>
+                  <th className="text-right px-4 py-3 font-medium">Trades</th>
+                  <th className="text-right px-4 py-3 font-medium">Volume</th>
                   <th className="text-right px-4 py-3 font-medium">
-                    Registered
+                    Last trade
                   </th>
                 </tr>
               </thead>
@@ -160,14 +160,20 @@ export default async function HomePage() {
                         {b.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-zinc-400">
-                      {b.wallets_count}
+                    <td className="px-4 py-3 text-right font-mono text-zinc-300">
+                      {b.transfers_count}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono text-zinc-400">
-                      {b.missions_count}
+                    <td className="px-4 py-3 text-right font-mono text-zinc-300">
+                      {b.volume_usd > 0 ? (
+                        <>
+                          ${fmtUsdc(b.volume_usd)}
+                        </>
+                      ) : (
+                        <span className="text-zinc-600">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right text-zinc-500 text-xs">
-                      {fmtDate(b.registered_at)}
+                      {fmtRelative(b.last_transfer_at)}
                     </td>
                   </tr>
                   );

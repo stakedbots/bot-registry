@@ -5,6 +5,7 @@ import {
   shortAddr,
   fmtUsdc,
   fmtDateTime,
+  fmtRelative,
   basescanAddr,
   basescanTx,
   ipfsToHttp,
@@ -66,15 +67,20 @@ export default async function BotDetailPage({
         </div>
       </header>
 
-      <div className="grid sm:grid-cols-3 gap-4 mb-10">
+      <div className="grid sm:grid-cols-4 gap-4 mb-10">
         <Stat label="Stake" value={`${fmtUsdc(bot.stake_amount_usdc)} USDC`} />
         <Stat
-          label="Wallets linked"
-          value={String(bot.wallets_count)}
-          hint="active trading wallets"
+          label="Trades"
+          value={String(bot.transfers_count)}
+          hint={bot.last_transfer_at ? `last ${fmtRelative(bot.last_transfer_at)}` : "no activity yet"}
         />
         <Stat
-          label="Missions attested"
+          label="Volume"
+          value={bot.volume_usd > 0 ? `$${fmtUsdc(bot.volume_usd)}` : "—"}
+          hint="cumulative USD across all transfers"
+        />
+        <Stat
+          label="Missions"
           value={String(bot.missions_count)}
           hint="strategy commitments on-chain"
         />

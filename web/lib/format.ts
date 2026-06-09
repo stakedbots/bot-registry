@@ -40,6 +40,21 @@ export function basescanTx(tx: string, chain: string): string {
   return `${base}/tx/${tx}`;
 }
 
+export function fmtRelative(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const diffMs = Date.now() - d.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d2 = Math.floor(hr / 24);
+  if (d2 < 30) return `${d2}d ago`;
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
+}
+
 export function ipfsToHttp(uri: string): string {
   if (!uri) return "";
   if (uri.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${uri.slice(7)}`;
