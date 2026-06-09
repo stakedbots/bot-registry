@@ -83,7 +83,7 @@ export default function RootLayout({
             <span className="font-mono">
               registry on Base ·{" "}
               <a
-                href="https://sepolia.basescan.org/address/0xe11571195aB3c7e629E4c74C6018125Bc57f01F1"
+                href="https://basescan.org/address/0x86c1934e05d8bE878D012bd121553802BA8FE0D8"
                 target="_blank"
                 rel="noreferrer"
                 className="hover:text-zinc-300"
