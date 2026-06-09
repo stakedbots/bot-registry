@@ -37,8 +37,8 @@ async function main() {
   console.log("deployer:", deployer.address);
   console.log("balance: ", ethers.formatEther(bal), "ETH");
   console.log("stake token (USDC):", stakeToken);
-  console.log("minStake:    ", MIN_STAKE.toString(), "(100 USDC)");
-  console.log("minChallenge:", MIN_CHALLENGE.toString(), "(50 USDC)");
+  console.log("minStake:    ", MIN_STAKE.toString(), `(${Number(MIN_STAKE) / 1e6} USDC)`);
+  console.log("minChallenge:", MIN_CHALLENGE.toString(), `(${Number(MIN_CHALLENGE) / 1e6} USDC)`);
 
   if (bal === 0n) {
     throw new Error("deployer has 0 ETH on this network. fund the address first.");

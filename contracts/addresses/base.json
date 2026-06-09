@@ -1,12 +1,12 @@
 {
   "network": "base",
   "chainId": 8453,
-  "registry": "0x2FF3BAbeC8213F1c9d2e84F54612A3E607cc77D0",
+  "registry": "0x86c1934e05d8bE878D012bd121553802BA8FE0D8",
   "deployer": "0xfBaa47A6A4463Fc7D1dD1e3B20F07e1DD76B3dDD",
   "stakeToken": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-  "minStake": "100000000",
-  "minChallenge": "50000000",
-  "tx": "0x9b279ff987973b8f6e0b6124857ed84fe8bedb33100039ce461e10aea7596117",
-  "block": 47118766,
-  "deployedAt": "2026-06-09T17:41:17.849Z"
+  "minStake": "10000000",
+  "minChallenge": "5000000",
+  "tx": "0x2e0f6a958f179482b9c27b78678a9174fcfd88372aa94495e3705ac70aa3de27",
+  "block": 47119339,
+  "deployedAt": "2026-06-09T18:00:23.719Z"
 }
