@@ -2,6 +2,14 @@ import { supabase } from "./db.js";
 
 const USDC_DECIMALS = 6;
 
+// Which chains the public leaderboard surfaces. Defaults to mainnet only so
+// testnet placeholders don't dilute the "real money" pitch. Set PUBLIC_LIST_CHAINS
+// to a comma-separated list (e.g. "base,baseSepolia") to widen it.
+const PUBLIC_LIST_CHAINS = (process.env.PUBLIC_LIST_CHAINS || "base")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 function toUsdc(raw) {
   if (raw === null || raw === undefined) return null;
   return Number(raw) / 10 ** USDC_DECIMALS;
@@ -27,6 +35,7 @@ export async function listBots() {
       .from("bots")
       .select("bot_id, on_chain_bot_id, operator_address, manifest_uri, stake_amount_raw, status, chain, registered_at, registered_block")
       .in("status", ["active", "paused"]) // hide withdrawn + slashed from main view
+      .in("chain", PUBLIC_LIST_CHAINS) // mainnet-only by default; testnet placeholders stay hidden
       .order("chain", { ascending: true }) // 'base' sorts before 'baseSepolia'
       .order("registered_at", { ascending: false })
       .limit(200),
