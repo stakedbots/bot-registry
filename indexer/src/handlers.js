@@ -4,19 +4,31 @@
  *   ctx    = { chain, blockNumber, blockTimestamp, txHash }
  *   args   = decoded event args
  *
- * All handlers must be idempotent — they may re-run if the indexer restarts
- * mid-batch.
+ * Handlers are idempotent — they may re-run if the indexer restarts mid-batch.
+ *
+ * Since migration 003, `bots.bot_id` is a DB-side autoincrementing PK and
+ * `bots.on_chain_bot_id` is the chain-emitted id. Foreign keys still target
+ * `bot_id`, so each handler that uses an FK must resolve DB id first.
  */
+
+async function resolveBotId(client, chain, onChainBotId) {
+  const r = await client.query(
+    `select bot_id from bot_registry.bots
+       where chain = $1 and on_chain_bot_id = $2`,
+    [chain, onChainBotId.toString()]
+  );
+  return r.rows[0]?.bot_id ?? null;
+}
 
 export const HANDLERS = {
   async BotRegistered(client, ctx, a) {
     await client.query(
       `insert into bot_registry.bots
-         (bot_id, operator_address, manifest_uri, manifest_hash,
+         (on_chain_bot_id, operator_address, manifest_uri, manifest_hash,
           chain, stake_amount_raw, status,
           registered_at, registered_block, registered_tx)
        values ($1, $2, $3, $4, $5, $6, 'active', $7, $8, $9)
-       on conflict (bot_id) do nothing`,
+       on conflict (chain, on_chain_bot_id) do nothing`,
       [
         a.botId.toString(),
         a.operator.toLowerCase(),
@@ -32,6 +44,8 @@ export const HANDLERS = {
   },
 
   async WalletLinked(client, ctx, a) {
+    const botId = await resolveBotId(client, ctx.chain, a.botId);
+    if (!botId) return; // bot not yet seen — should never happen since events are ordered
     await client.query(
       `insert into bot_registry.bot_wallets
          (bot_id, wallet_address, chain, linked_at, linked_block, linked_tx)
@@ -44,7 +58,7 @@ export const HANDLERS = {
          unlinked_at = null,
          unlinked_tx = null`,
       [
-        a.botId.toString(),
+        botId,
         a.wallet.toLowerCase(),
         ctx.chain,
         ctx.blockTimestamp,
@@ -64,6 +78,8 @@ export const HANDLERS = {
   },
 
   async MissionAttested(client, ctx, a) {
+    const botId = await resolveBotId(client, ctx.chain, a.botId);
+    if (!botId) return;
     await client.query(
       `insert into bot_registry.missions
          (bot_id, epoch_id, benchmark, strategy_hash, manifest_uri,
@@ -71,7 +87,7 @@ export const HANDLERS = {
        values ($1, $2, '', $3, $4, $5, $6, $7)
        on conflict (bot_id, epoch_id) do nothing`,
       [
-        a.botId.toString(),
+        botId,
         a.epochId,
         Buffer.from(a.strategyHash.slice(2), "hex"),
         a.manifestURI,
@@ -84,8 +100,10 @@ export const HANDLERS = {
 
   async StakeIncreased(client, ctx, a) {
     await client.query(
-      `update bot_registry.bots set stake_amount_raw = $1 where bot_id = $2`,
-      [a.newTotal.toString(), a.botId.toString()]
+      `update bot_registry.bots
+         set stake_amount_raw = $1
+       where chain = $2 and on_chain_bot_id = $3`,
+      [a.newTotal.toString(), ctx.chain, a.botId.toString()]
     );
   },
 
@@ -93,8 +111,8 @@ export const HANDLERS = {
     await client.query(
       `update bot_registry.bots
          set stake_amount_raw = 0, status = 'withdrawn'
-       where bot_id = $1`,
-      [a.botId.toString()]
+       where chain = $1 and on_chain_bot_id = $2`,
+      [ctx.chain, a.botId.toString()]
     );
   },
 
@@ -102,19 +120,19 @@ export const HANDLERS = {
     await client.query(
       `update bot_registry.bots
          set manifest_uri = $1, manifest_hash = $2
-       where bot_id = $3`,
+       where chain = $3 and on_chain_bot_id = $4`,
       [
         a.manifestURI,
         Buffer.from(a.manifestHash.slice(2), "hex"),
+        ctx.chain,
         a.botId.toString(),
       ]
     );
   },
 
   async EpochCommitted(client, ctx, a) {
-    // Insert minimal row if epoch_performance has no entry yet for this
-    // (bot_id, epoch_id). Real PnL fields get computed elsewhere; here we
-    // only carry the merkle anchor + commit metadata.
+    const botId = await resolveBotId(client, ctx.chain, a.botId);
+    if (!botId) return;
     await client.query(
       `insert into bot_registry.epoch_performance
          (bot_id, epoch_id, starts_at, ends_at,
@@ -126,7 +144,7 @@ export const HANDLERS = {
          committed_at = excluded.committed_at,
          committed_tx = excluded.committed_tx`,
       [
-        a.botId.toString(),
+        botId,
         a.epochId,
         ctx.blockTimestamp,
         Buffer.from(a.merkleRoot.slice(2), "hex"),
@@ -137,6 +155,8 @@ export const HANDLERS = {
   },
 
   async ChallengeOpened(client, ctx, a) {
+    const botId = await resolveBotId(client, ctx.chain, a.botId);
+    if (!botId) return;
     const reason = ["wash_trade","hidden_wallet","mission_violation","manifest_mismatch","fake_volume"].includes(a.reason)
       ? a.reason
       : "other";
@@ -149,7 +169,7 @@ export const HANDLERS = {
        on conflict (challenge_id) do nothing`,
       [
         a.challengeId.toString(),
-        a.botId.toString(),
+        botId,
         a.challenger.toLowerCase(),
         a.stake.toString(),
         reason,
@@ -174,8 +194,8 @@ export const HANDLERS = {
     await client.query(
       `update bot_registry.bots
          set stake_amount_raw = 0, status = 'slashed'
-       where bot_id = $1`,
-      [a.botId.toString()]
+       where chain = $1 and on_chain_bot_id = $2`,
+      [ctx.chain, a.botId.toString()]
     );
   },
 

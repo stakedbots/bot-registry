@@ -24,7 +24,8 @@ export async function listBots() {
   const [bots, wallets, missions] = await Promise.all([
     supabase
       .from("bots")
-      .select("bot_id, operator_address, manifest_uri, stake_amount_raw, status, chain, registered_at, registered_block")
+      .select("bot_id, on_chain_bot_id, operator_address, manifest_uri, stake_amount_raw, status, chain, registered_at, registered_block")
+      .order("chain", { ascending: true }) // 'base' sorts before 'baseSepolia'
       .order("registered_at", { ascending: false })
       .limit(200),
     supabase.from("bot_wallets").select("bot_id").is("unlinked_at", null),
@@ -41,6 +42,7 @@ export async function listBots() {
 
   return bots.data.map((b) => ({
     bot_id: String(b.bot_id),
+    on_chain_bot_id: String(b.on_chain_bot_id),
     operator_address: b.operator_address,
     manifest_uri: b.manifest_uri,
     stake_amount_raw: b.stake_amount_raw,
@@ -57,13 +59,14 @@ export async function listBots() {
 export async function getBot(botId) {
   const { data, error } = await supabase
     .from("bots")
-    .select("bot_id, operator_address, manifest_uri, manifest_hash, stake_amount_raw, status, chain, registered_at, registered_block, registered_tx")
+    .select("bot_id, on_chain_bot_id, operator_address, manifest_uri, manifest_hash, stake_amount_raw, status, chain, registered_at, registered_block, registered_tx")
     .eq("bot_id", botId)
     .maybeSingle();
   if (error) await fail("getBot", error);
   if (!data) return null;
   return {
     bot_id: String(data.bot_id),
+    on_chain_bot_id: String(data.on_chain_bot_id),
     operator_address: data.operator_address,
     manifest_uri: data.manifest_uri,
     manifest_hash: byteaToHex(data.manifest_hash),
@@ -104,11 +107,29 @@ export async function getBotMissions(botId) {
   }));
 }
 
+/**
+ * Returns the (chain, on_chain_bot_id) pair so callers can filter on
+ * contract_events / wallet_transfers etc. (those tables hold the on-chain id
+ * inside event_data, not the DB autoincrement id).
+ */
+async function resolveOnChainBotId(botId) {
+  const { data, error } = await supabase
+    .from("bots")
+    .select("chain, on_chain_bot_id")
+    .eq("bot_id", botId)
+    .maybeSingle();
+  if (error) await fail("resolveOnChainBotId", error);
+  return data; // null if not found
+}
+
 export async function getBotEventsCount(botId) {
+  const ref = await resolveOnChainBotId(botId);
+  if (!ref) return 0;
   const { count, error } = await supabase
     .from("contract_events")
     .select("*", { count: "exact", head: true })
-    .eq("event_data->>botId", String(botId));
+    .eq("chain", ref.chain)
+    .eq("event_data->>botId", String(ref.on_chain_bot_id));
   if (error) await fail("getBotEventsCount", error);
   return count ?? 0;
 }
@@ -124,10 +145,13 @@ export async function getBotStats(botId) {
 }
 
 export async function getBotEvents(botId, { limit = 100, offset = 0 } = {}) {
+  const ref = await resolveOnChainBotId(botId);
+  if (!ref) return [];
   const { data, error } = await supabase
     .from("contract_events")
     .select("event_name, block_number, block_timestamp, tx_hash, log_index, event_data")
-    .eq("event_data->>botId", String(botId))
+    .eq("chain", ref.chain)
+    .eq("event_data->>botId", String(ref.on_chain_bot_id))
     .order("block_number", { ascending: true })
     .order("log_index", { ascending: true })
     .range(offset, offset + limit - 1);
@@ -140,4 +164,30 @@ export async function getBotEvents(botId, { limit = 100, offset = 0 } = {}) {
     log_index: row.log_index,
     args: row.event_data,
   }));
+}
+
+export async function getBotTransfers(botId, { limit = 50 } = {}) {
+  const { data, error } = await supabase
+    .from("wallet_transfers")
+    .select("wallet_address, chain, token_address, direction, amount_raw, counterparty, block_number, block_timestamp, tx_hash, log_index")
+    .eq("bot_id", botId)
+    .order("block_timestamp", { ascending: false })
+    .limit(limit);
+  if (error) await fail("getBotTransfers", error);
+  return (data || []).map((r) => ({ ...r, block_number: Number(r.block_number) }));
+}
+
+export async function getBotTransfersStats(botId) {
+  const { data, error } = await supabase
+    .from("wallet_transfers")
+    .select("amount_raw, direction, block_timestamp")
+    .eq("bot_id", botId);
+  if (error) await fail("getBotTransfersStats", error);
+  const rows = data || [];
+  return {
+    transfers_count: rows.length,
+    last_transfer_at: rows.length
+      ? rows.reduce((acc, r) => (r.block_timestamp > acc ? r.block_timestamp : acc), rows[0].block_timestamp)
+      : null,
+  };
 }

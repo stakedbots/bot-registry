@@ -10,6 +10,8 @@ import {
   getBotStats,
   getBotEventsCount,
   getBotEvents,
+  getBotTransfers,
+  getBotTransfersStats,
 } from "./queries.js";
 
 const PAY_TO = process.env.PAY_TO;
@@ -75,13 +77,24 @@ app.get("/bots/:id/detail", async (c) => {
   const id = c.req.param("id");
   const bot = await getBot(id);
   if (!bot) return c.json({ error: "not_found" }, 404);
-  const [wallets, missions, eventsCount, stats] = await Promise.all([
+  const [wallets, missions, eventsCount, stats, transfers, transferStats] = await Promise.all([
     getBotWallets(id),
     getBotMissions(id),
     getBotEventsCount(id),
     getBotStats(id),
+    getBotTransfers(id, { limit: 50 }),
+    getBotTransfersStats(id),
   ]);
-  return c.json({ ...bot, wallets, missions, stats, events_count: eventsCount });
+  return c.json({
+    ...bot,
+    wallets,
+    missions,
+    stats,
+    events_count: eventsCount,
+    transfers_count: transferStats.transfers_count,
+    last_transfer_at: transferStats.last_transfer_at,
+    recent_transfers: transfers,
+  });
 });
 
 app.get("/bots/:id/events", async (c) => {
