@@ -12,6 +12,7 @@ const REVALIDATE = 30;
 
 export type BotListEntry = {
   bot_id: string;
+  on_chain_bot_id: string;
   operator_address: string;
   manifest_uri: string;
   stake_amount_raw: string | number;

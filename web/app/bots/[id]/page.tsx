@@ -9,6 +9,7 @@ import {
   basescanTx,
   ipfsToHttp,
   statusBadgeClass,
+  chainBadge,
 } from "@/lib/format";
 
 export const revalidate = 30;
@@ -33,7 +34,7 @@ export default async function BotDetailPage({
       <header className="flex flex-wrap items-start justify-between gap-6 mb-10">
         <div>
           <h1 className="text-3xl font-semibold font-mono">
-            Bot <span className="text-emerald-400">#{bot.bot_id}</span>
+            Bot <span className="text-emerald-400">#{bot.on_chain_bot_id}</span>
           </h1>
           <p className="mt-2 text-sm text-zinc-400">
             Operated by{" "}
@@ -47,13 +48,22 @@ export default async function BotDetailPage({
             </a>
           </p>
         </div>
-        <span
-          className={`inline-flex items-center px-3 py-1 text-xs rounded-md font-medium ${statusBadgeClass(
-            bot.status
-          )}`}
-        >
-          {bot.status}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center px-3 py-1 text-xs rounded-md font-medium ${chainBadge(
+              bot.chain
+            ).className}`}
+          >
+            {chainBadge(bot.chain).full}
+          </span>
+          <span
+            className={`inline-flex items-center px-3 py-1 text-xs rounded-md font-medium ${statusBadgeClass(
+              bot.status
+            )}`}
+          >
+            {bot.status}
+          </span>
+        </div>
       </header>
 
       <div className="grid sm:grid-cols-3 gap-4 mb-10">

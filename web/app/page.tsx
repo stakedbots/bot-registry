@@ -5,6 +5,7 @@ import {
   fmtUsdc,
   fmtDate,
   statusBadgeClass,
+  chainBadge,
 } from "@/lib/format";
 
 export const revalidate = 30;
@@ -108,6 +109,7 @@ export default async function HomePage() {
               <thead className="bg-zinc-950/60 text-zinc-500 text-xs uppercase tracking-wider">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium">#</th>
+                  <th className="text-left px-4 py-3 font-medium">Chain</th>
                   <th className="text-left px-4 py-3 font-medium">Operator</th>
                   <th className="text-right px-4 py-3 font-medium">Stake</th>
                   <th className="text-center px-4 py-3 font-medium">Status</th>
@@ -119,7 +121,9 @@ export default async function HomePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {bots.map((b) => (
+                {bots.map((b) => {
+                  const cb = chainBadge(b.chain);
+                  return (
                   <tr
                     key={b.bot_id}
                     className="hover:bg-zinc-900/40 transition-colors"
@@ -129,8 +133,16 @@ export default async function HomePage() {
                         href={`/bots/${b.bot_id}`}
                         className="text-emerald-400 hover:text-emerald-300 font-mono font-medium"
                       >
-                        #{b.bot_id}
+                        #{b.on_chain_bot_id}
                       </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        title={cb.full}
+                        className={`inline-block px-2 py-0.5 text-xs rounded-md font-medium ${cb.className}`}
+                      >
+                        {cb.label}
+                      </span>
                     </td>
                     <td className="px-4 py-3 font-mono text-zinc-300">
                       {shortAddr(b.operator_address)}
@@ -158,7 +170,8 @@ export default async function HomePage() {
                       {fmtDate(b.registered_at)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

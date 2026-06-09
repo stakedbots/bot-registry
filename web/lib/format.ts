@@ -46,6 +46,33 @@ export function ipfsToHttp(uri: string): string {
   return uri;
 }
 
+export type ChainBadge = { label: string; className: string; full: string };
+
+export function chainBadge(chain: string): ChainBadge {
+  switch (chain) {
+    case "base":
+      return {
+        label: "mainnet",
+        full: "Base mainnet",
+        className:
+          "bg-blue-500/15 text-blue-300 border border-blue-500/30",
+      };
+    case "baseSepolia":
+      return {
+        label: "testnet",
+        full: "Base Sepolia",
+        className:
+          "bg-zinc-700/40 text-zinc-300 border border-zinc-600/40",
+      };
+    default:
+      return {
+        label: chain,
+        full: chain,
+        className: "bg-zinc-700/40 text-zinc-300 border border-zinc-600/40",
+      };
+  }
+}
+
 export function statusBadgeClass(status: string): string {
   switch (status) {
     case "active":
