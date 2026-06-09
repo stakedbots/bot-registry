@@ -13,7 +13,9 @@
     "clean": "hardhat clean",
     "deploy:sepolia": "hardhat run scripts/deploy.js --network baseSepolia",
     "deploy:mainnet": "hardhat run scripts/deploy.js --network base",
-    "test:e2e:sepolia": "hardhat run scripts/test-register.js --network baseSepolia"
+    "test:e2e:sepolia": "hardhat run scripts/test-register.js --network baseSepolia",
+    "register:mainnet": "hardhat run scripts/register-bot.js --network base",
+    "register:sepolia": "hardhat run scripts/register-bot.js --network baseSepolia"
   },
   "keywords": [],
   "author": "",

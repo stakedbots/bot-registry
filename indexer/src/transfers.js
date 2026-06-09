@@ -8,6 +8,7 @@
  */
 
 import { parseAbi, getAddress } from "viem";
+import { getTokenInfo, getUsdPrice, rawToUsd } from "./pricing.js";
 
 const TRANSFER = parseAbi([
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -51,9 +52,10 @@ async function insertTransfer(client, t) {
   await client.query(
     `insert into bot_registry.wallet_transfers
        (bot_id, wallet_address, chain, token_address, direction,
-        amount_raw, counterparty,
+        amount_raw, amount_usd, token_decimals, token_symbol,
+        counterparty,
         block_number, block_timestamp, tx_hash, log_index)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      on conflict (chain, tx_hash, log_index, direction) do nothing`,
     [
       t.botId.toString(),
@@ -62,6 +64,9 @@ async function insertTransfer(client, t) {
       t.token.toLowerCase(),
       t.direction,
       t.amount.toString(),
+      t.amountUsd,
+      t.decimals,
+      t.symbol,
       t.counterparty ? t.counterparty.toLowerCase() : null,
       t.blockNumber.toString(),
       t.blockTimestamp,
@@ -169,8 +174,24 @@ export async function indexTransfers({ client, pool, viemClient, cfg, dry = fals
 
     for (const r of records) {
       r.blockTimestamp = await blockTs(r.blockNumber);
+
+      // Enrich with USD pricing. Failures are non-fatal — we still record
+      // the raw transfer.
+      try {
+        const info = await getTokenInfo(client, viemClient, r.chain, r.token);
+        r.decimals = info.decimals;
+        r.symbol = info.symbol;
+        const price = await getUsdPrice(r.chain, r.token, r.blockTimestamp);
+        r.amountUsd = rawToUsd(r.amount, r.decimals, price);
+      } catch (e) {
+        log(`  [pricing] failed for ${r.token}: ${e?.message ?? e}`);
+        r.decimals = null;
+        r.symbol = null;
+        r.amountUsd = null;
+      }
+
       if (dry) {
-        log(`  [dry] ${r.direction} ${r.amount} ${r.token} tx=${r.txHash}`);
+        log(`  [dry] ${r.direction} ${r.amount} ${r.symbol ?? r.token.slice(0,8)} (~$${r.amountUsd ?? "?"}) tx=${r.txHash}`);
       } else {
         await client.query("BEGIN");
         try {
