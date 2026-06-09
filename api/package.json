@@ -1,0 +1,27 @@
+{
+  "name": "bot-registry-api",
+  "version": "1.0.0",
+  "description": "x402-paywalled API for bot_registry",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "@hono/node-server": "^2.0.4",
+    "dotenv": "^17.4.2",
+    "hono": "^4.12.25",
+    "pg": "^8.21.0",
+    "viem": "^2.52.2",
+    "x402-hono": "^1.2.0"
+  },
+  "devDependencies": {
+    "x402-fetch": "^1.2.0"
+  }
+}

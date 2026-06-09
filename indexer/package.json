@@ -1,0 +1,22 @@
+{
+  "name": "bot-registry-indexer",
+  "version": "1.0.0",
+  "description": "Reads Registry events from Base + writes to bot_registry schema",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js",
+    "once": "node src/index.js --once",
+    "dry": "node src/index.js --dry-run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "pg": "^8.21.0",
+    "viem": "^2.52.2"
+  }
+}

@@ -1,0 +1,21 @@
+# Belt-and-suspenders: each subproject has its own .gitignore too.
+
+# Secrets — anywhere in the tree
+**/.env
+**/.env.local
+**/.env.*.local
+!**/.env.example
+
+# Node
+**/node_modules/
+
+# Hardhat / Foundry
+**/cache/
+**/artifacts/
+**/coverage/
+**/coverage.json
+**/typechain-types/
+
+# Logs / OS
+**/*.log
+**/.DS_Store

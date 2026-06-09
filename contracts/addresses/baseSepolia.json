@@ -1,0 +1,11 @@
+{
+  "network": "baseSepolia",
+  "chainId": 84532,
+  "registry": "0xe11571195aB3c7e629E4c74C6018125Bc57f01F1",
+  "deployer": "0xfBaa47A6A4463Fc7D1dD1e3B20F07e1DD76B3dDD",
+  "stakeToken": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "minStake": "10000000",
+  "minChallenge": "5000000",
+  "notes": "Sepolia test deploy with reduced mins (10/5 USDC) since Circle faucet caps ~10 USDC/claim. Mainnet uses 100/50.",
+  "deployedAt": "2026-06-09 (overwrote previous)"
+}
