@@ -22,4 +22,3 @@
 
 # X publish helper deps
 scripts/x-publish/node_modules/
-scripts/x-publish/package-lock.json
