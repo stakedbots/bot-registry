@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { paymentMiddleware } from "x402-hono";
+import { createFacilitatorConfig } from "@coinbase/x402";
 import {
   listBots,
   getBot,
@@ -26,7 +27,14 @@ if (!PAY_TO) {
 
 const app = new Hono();
 
-const facilitator = FACILITATOR_URL ? { url: FACILITATOR_URL } : undefined;
+// Facilitator priority: CDP (auths via CDP_API_KEY_ID/SECRET, required on
+// mainnet + enables Bazaar discovery) > explicit FACILITATOR_URL > x402.org default.
+const facilitator =
+  process.env.CDP_API_KEY_ID && process.env.CDP_API_KEY_SECRET
+    ? createFacilitatorConfig(process.env.CDP_API_KEY_ID, process.env.CDP_API_KEY_SECRET)
+    : FACILITATOR_URL
+      ? { url: FACILITATOR_URL }
+      : undefined;
 
 app.use(
   paymentMiddleware(
@@ -35,12 +43,48 @@ app.use(
       "GET /bots/*/detail": {
         price: "$0.10",
         network: NETWORK,
-        config: { description: "Full bot detail: wallets, missions, stats" },
+        config: {
+          description:
+            "Full detail for a registered trading bot: linked wallets, attested missions, performance stats, on-chain activity summary",
+          mimeType: "application/json",
+          discoverable: true,
+          outputSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "Bot id in the registry" },
+              name: { type: "string" },
+              strategy: { type: "string" },
+              stake_usdc: { type: "string", description: "USDC staked by the operator" },
+              wallets: { type: "array", description: "Linked on-chain wallets" },
+              missions: { type: "array", description: "Pre-committed strategy attestations" },
+              stats: { type: "object", description: "Per-epoch PnL vs declared benchmark" },
+              events_count: { type: "number" },
+              transfers_count: { type: "number" },
+              last_transfer_at: { type: "string" },
+              recent_transfers: { type: "array" },
+            },
+          },
+        },
       },
       "GET /bots/*/events": {
         price: "$0.05",
         network: NETWORK,
-        config: { description: "Raw on-chain event log for this bot" },
+        config: {
+          description:
+            "Raw on-chain registry event log for a bot (registrations, wallet links, mission attestations, challenges)",
+          mimeType: "application/json",
+          discoverable: true,
+          outputSchema: {
+            type: "object",
+            properties: {
+              bot_id: { type: "string" },
+              events: { type: "array" },
+              total: { type: "number" },
+              limit: { type: "number" },
+              offset: { type: "number" },
+            },
+          },
+        },
       },
     },
     facilitator
@@ -109,5 +153,9 @@ app.get("/bots/:id/events", async (c) => {
 console.log(`bot-registry-api listening on :${PORT}`);
 console.log(`  network: ${NETWORK}`);
 console.log(`  payTo:   ${PAY_TO}`);
-console.log(`  facilitator: ${FACILITATOR_URL || "x402.org (default)"}`);
+console.log(
+  `  facilitator: ${
+    process.env.CDP_API_KEY_ID ? "CDP (Bazaar discovery on)" : FACILITATOR_URL || "x402.org (default)"
+  }`
+);
 serve({ fetch: app.fetch, port: PORT });
