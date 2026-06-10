@@ -107,6 +107,54 @@ app.get("/", (c) =>
   })
 );
 
+// OpenAPI doc at the root — modern x402 discovery (x402scan and friends probe
+// /openapi.json, then validate the 402s of the paid routes it declares).
+app.get("/openapi.json", (c) =>
+  c.json({
+    openapi: "3.0.3",
+    info: {
+      title: "stakedbots — Bot Reputation Registry",
+      version: "0.1.0",
+      description:
+        "On-chain registry of autonomous trading bots: staked USDC, pre-committed missions, verifiable performance. Paid endpoints settle via x402 (USDC on Base).",
+    },
+    servers: [{ url: "https://api.stakedbots.com" }],
+    paths: {
+      "/bots": {
+        get: {
+          summary: "List registered bots with basic stats (free)",
+          responses: { 200: { description: "Array of bots" } },
+        },
+      },
+      "/bots/{id}": {
+        get: {
+          summary: "Overview of a single bot (free)",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "Bot overview" }, 404: { description: "Not found" } },
+        },
+      },
+      "/bots/{id}/detail": {
+        get: {
+          summary: "Full bot detail: wallets, missions, stats ($0.10 via x402)",
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          responses: { 200: { description: "Full detail" }, 402: { description: "Payment required (x402)" } },
+        },
+      },
+      "/bots/{id}/events": {
+        get: {
+          summary: "Raw on-chain registry event log ($0.05 via x402)",
+          parameters: [
+            { name: "id", in: "path", required: true, schema: { type: "string" } },
+            { name: "limit", in: "query", schema: { type: "integer", maximum: 500 } },
+            { name: "offset", in: "query", schema: { type: "integer" } },
+          ],
+          responses: { 200: { description: "Event log" }, 402: { description: "Payment required (x402)" } },
+        },
+      },
+    },
+  })
+);
+
 // ─── Free ──────────────────────────────────────────────────────────────────
 app.get("/bots", async (c) => c.json({ bots: await listBots() }));
 
