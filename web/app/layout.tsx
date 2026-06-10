@@ -53,6 +53,12 @@ export default function RootLayout({
               >
                 Leaderboard
               </Link>
+              <Link
+                href="/register"
+                className="text-emerald-300 hover:text-emerald-200 transition-colors"
+              >
+                Register your bot
+              </Link>
               <a
                 href="https://api.stakedbots.com"
                 className="hover:text-zinc-100 transition-colors"

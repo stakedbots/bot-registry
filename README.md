@@ -50,11 +50,15 @@ Consumed via **x402** — agents pay per query to inspect bots, no signup.
 | Path                     | What                                                |
 |--------------------------|-----------------------------------------------------|
 | `contracts/src/Registry.sol`         | Core registry + challenges + slashing.  |
-| `supabase/migrations/001_*.sql`      | Schema `bot_registry`.                  |
-| `indexer/` (TBD)                     | Event + trade indexer (Node + viem).    |
-| `api/` (TBD)                         | x402 endpoints.                         |
-| `web/` (TBD)                         | Public leaderboard.                     |
-| `docs/`                              | Notes, design decisions.                |
+| `supabase/migrations/*.sql`          | Schema `bot_registry`.                  |
+| `indexer/`                           | Event + trade indexer (Node + viem).    |
+| `api/`                               | x402 endpoints — [api.stakedbots.com](https://api.stakedbots.com). |
+| `web/`                               | Public leaderboard — [stakedbots.com](https://stakedbots.com). |
+| `cli/`                               | Operator CLI — register your own bot ([guide](https://stakedbots.com/register)). |
+
+**Registry on Base mainnet:**
+[`0x86c1934e05d8bE878D012bd121553802BA8FE0D8`](https://basescan.org/address/0x86c1934e05d8bE878D012bd121553802BA8FE0D8)
+(min stake 10 USDC, min challenge 5 USDC).
 
 ## Trust model in 30s
 
@@ -74,7 +78,7 @@ not just warnings.
 
 - **Chain**: Base mainnet. Cheap, USDC-native, where Jorge's bots already run.
 - **Stake token**: USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`).
-- **Min stake**: 100 USDC (100e6). Min challenge: 50 USDC.
+- **Min stake**: 10 USDC (10e6). Min challenge: 5 USDC.
 - **Contract framework**: Hardhat (npm-native, no extra installs). Swap to
   Foundry later is trivial — `Registry.sol` is plain Solidity.
 - **DB**: existing self-hosted Supabase on Hetzner, new schema `bot_registry`,

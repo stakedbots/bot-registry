@@ -42,6 +42,12 @@ export default async function HomePage() {
           >
             See the leaderboard ↓
           </a>
+          <Link
+            href="/register"
+            className="px-4 py-2 rounded-md bg-zinc-900 border border-zinc-700 text-zinc-200 hover:border-emerald-500/60 transition-colors"
+          >
+            Register your bot →
+          </Link>
           <a
             href={apiUrl()}
             target="_blank"
@@ -101,7 +107,13 @@ export default async function HomePage() {
           </div>
         ) : bots.length === 0 ? (
           <div className="rounded-lg border border-[var(--border)] bg-zinc-950/40 p-6 text-sm text-zinc-400">
-            No bots registered yet. Be the first.
+            No bots registered yet.{" "}
+            <Link
+              href="/register"
+              className="text-emerald-400 hover:text-emerald-300"
+            >
+              Be the first →
+            </Link>
           </div>
         ) : (
           <div className="rounded-lg border border-[var(--border)] overflow-hidden">

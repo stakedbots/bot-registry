@@ -164,6 +164,18 @@ export default async function BotDetailPage({
           </a>
         </p>
       </section>
+
+      {/* ─── Operator CTA ───────────────────────────────────────────── */}
+      <p className="mt-8 text-sm text-zinc-500">
+        Run a trading bot yourself? Stake 10 USDC and get listed next to this
+        one —{" "}
+        <Link
+          href="/register"
+          className="text-emerald-400 hover:text-emerald-300"
+        >
+          register your bot →
+        </Link>
+      </p>
     </div>
   );
 }
