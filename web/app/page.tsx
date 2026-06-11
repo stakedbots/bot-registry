@@ -4,6 +4,7 @@ import {
   shortAddr,
   fmtUsdc,
   fmtPnl,
+  fmtAlpha,
   fmtRelative,
   statusBadgeClass,
   chainBadge,
@@ -13,7 +14,7 @@ import { CopyButton } from "@/components/copy-button";
 const AGENT_PROMPT = `Research the autonomous trading bots listed on stakedbots.com.
 1. GET https://api.stakedbots.com/bots (free) — every bot has USDC staked on-chain and a PnL derived from its real Base mainnet trades.
 2. For any bot worth a closer look, GET /bots/:id/detail ($0.10 USDC via x402) for linked wallets, attested missions and stats.
-3. Report back: which bots show positive PnL, real trading activity, and missions attested BEFORE their trades happened.`;
+3. Report back: which bots beat their HODL benchmark (alpha_pct), show real trading activity, and attested their missions BEFORE the trades happened.`;
 
 export const revalidate = 30;
 
@@ -28,11 +29,11 @@ export default async function HomePage() {
 
   const totalStake = bots.reduce((acc, b) => acc + b.stake_amount_usdc, 0);
   const totalVolume = bots.reduce((acc, b) => acc + (b.volume_usd || 0), 0);
-  const withPnl = bots.filter((b) => b.pnl_usd !== null);
-  const best = withPnl.length
-    ? withPnl.reduce((a, b) => ((b.pnl_pct ?? -Infinity) > (a.pnl_pct ?? -Infinity) ? b : a))
+  const withAlpha = bots.filter((b) => b.alpha_pct !== null);
+  const best = withAlpha.length
+    ? withAlpha.reduce((a, b) => ((b.alpha_pct ?? -Infinity) > (a.alpha_pct ?? -Infinity) ? b : a))
     : null;
-  const bestPnl = best ? fmtPnl(best.pnl_usd, best.pnl_pct) : null;
+  const bestAlpha = best ? fmtAlpha(best.alpha_pct) : null;
 
   return (
     <div className="mx-auto max-w-6xl px-6">
@@ -77,9 +78,9 @@ export default async function HomePage() {
           <HeroStat label="USDC at risk" value={fmtUsdc(totalStake)} />
           <HeroStat label="Volume traded" value={`$${fmtUsdc(totalVolume)}`} />
           <HeroStat
-            label="Top bot PnL"
-            value={bestPnl ? (bestPnl.pct ?? bestPnl.text) : "—"}
-            valueClass={bestPnl?.className}
+            label="Top alpha vs HODL"
+            value={bestAlpha ? bestAlpha.text : "—"}
+            valueClass={bestAlpha?.className}
           />
         </div>
       </section>
@@ -121,7 +122,7 @@ export default async function HomePage() {
             <h2 className="text-2xl font-semibold">Leaderboard</h2>
             <p className="text-sm text-zinc-500 mt-1">
               {bots.length} bot{bots.length === 1 ? "" : "s"} registered ·{" "}
-              {fmtUsdc(totalStake)} USDC total staked · PnL is mark-to-market
+              {fmtUsdc(totalStake)} USDC total staked · all numbers derived
               from on-chain trades, not self-reported
             </p>
           </div>
@@ -149,6 +150,10 @@ export default async function HomePage() {
                   <th className="text-left px-4 py-3 font-medium">#</th>
                   <th className="text-left px-4 py-3 font-medium">Chain</th>
                   <th className="text-left px-4 py-3 font-medium">Operator</th>
+                  <th className="text-right px-4 py-3 font-medium">
+                    Alpha{" "}
+                    <span className="normal-case text-zinc-600">vs HODL</span>
+                  </th>
                   <th className="text-right px-4 py-3 font-medium">PnL</th>
                   <th className="text-right px-4 py-3 font-medium">Stake</th>
                   <th className="text-center px-4 py-3 font-medium">Status</th>
@@ -163,6 +168,7 @@ export default async function HomePage() {
                 {bots.map((b) => {
                   const cb = chainBadge(b.chain);
                   const pnl = fmtPnl(b.pnl_usd, b.pnl_pct);
+                  const alpha = fmtAlpha(b.alpha_pct);
                   return (
                   <tr
                     key={b.bot_id}
@@ -186,6 +192,11 @@ export default async function HomePage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-zinc-300">
                       {shortAddr(b.operator_address)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      <span className={`font-semibold ${alpha.className}`}>
+                        {alpha.text}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
                       <span className={`font-medium ${pnl.className}`}>
@@ -232,6 +243,14 @@ export default async function HomePage() {
             </table>
           </div>
         )}
+        <p className="mt-3 text-xs text-zinc-600 leading-relaxed">
+          <span className="text-zinc-500 font-medium">Alpha</span> = equity vs
+          holding the same deposits 50/50 cbBTC/WETH bought the moment they
+          arrived. A bot can be down in USD and still beat the market — or up
+          and still underperform it. <span className="text-zinc-500 font-medium">PnL</span>{" "}
+          = current equity (holdings + stake) minus net deposits, ERC-20 only:
+          capital converted to native-ETH gas counts as an operating cost.
+        </p>
       </section>
 
       {/* ─── Tell your agent ───────────────────────────────────────── */}

@@ -23,6 +23,14 @@
  *
  * total_trades counts txs where the wallet had transfers in BOTH directions
  * (a swap), so plain deposits/withdrawals don't inflate it.
+ *
+ * Benchmark (alpha): each deposit (unpaired in-leg, non-Registry, priced) is
+ * simulated as buying 50% cbBTC + 50% WETH at deposit-time prices — the same
+ * "HODL 50/50 from T0, adjusted per capital injection" yardstick the house
+ * bots attest in their missions, but derived from chain. benchmark_usd is
+ * that phantom portfolio marked to market now; vs_benchmark_pct is the alpha.
+ * Mainnet only (DefiLlama has no testnet prices) — null elsewhere or if any
+ * deposit-time price is missing (no silently-wrong alpha).
  */
 
 import { parseAbi } from "viem";
@@ -31,6 +39,59 @@ import { getTokenInfo, getUsdPrice, rawToUsd } from "./pricing.js";
 const ERC20_BALANCE = parseAbi([
   "function balanceOf(address) view returns (uint256)",
 ]);
+
+// HODL 50/50 benchmark basket (Base mainnet).
+const BENCH_BASKET = {
+  base: [
+    "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf", // cbBTC
+    "0x4200000000000000000000000000000000000006", // WETH
+  ],
+};
+
+/**
+ * Phantom HODL portfolio: every deposit buys the basket 50/50 at its own
+ * timestamp; the result is marked to market at `now`.
+ * @returns number|null  null when the chain has no basket or a price is missing.
+ */
+async function benchmarkValue({ pool, cfg, botId, now }) {
+  const basket = BENCH_BASKET[cfg.chainName];
+  if (!basket) return null;
+
+  const deposits = await pool.query(
+    `select t.amount_usd, t.block_timestamp
+       from bot_registry.wallet_transfers t
+       join (select wallet_address, tx_hash
+               from bot_registry.wallet_transfers
+              where bot_id = $1 and chain = $2
+              group by wallet_address, tx_hash
+             having count(distinct direction) = 1) solo
+         on solo.wallet_address = t.wallet_address and solo.tx_hash = t.tx_hash
+      where t.bot_id = $1 and t.chain = $2 and t.direction = 'in'
+        and t.amount_usd is not null
+        and (t.counterparty is null or lower(t.counterparty) <> lower($3))`,
+    [botId, cfg.chainName, cfg.registryAddress]
+  );
+  if (deposits.rows.length === 0) return null;
+
+  const units = new Array(basket.length).fill(0);
+  for (const dep of deposits.rows) {
+    const usd = Number(dep.amount_usd);
+    const at = new Date(dep.block_timestamp);
+    for (let i = 0; i < basket.length; i++) {
+      const price = await getUsdPrice(cfg.chainName, basket[i], at);
+      if (!price) return null; // missing history → no alpha, never a wrong one
+      units[i] += usd / basket.length / price;
+    }
+  }
+
+  let value = 0;
+  for (let i = 0; i < basket.length; i++) {
+    const price = await getUsdPrice(cfg.chainName, basket[i], now);
+    if (!price) return null;
+    value += units[i] * price;
+  }
+  return value;
+}
 
 export async function computeStats({ client, pool, viemClient, cfg, log = console.log }) {
   const bots = await pool.query(
@@ -110,16 +171,25 @@ export async function computeStats({ client, pool, viemClient, cfg, log = consol
       const pnlUsd = equityUsd - netFlowsUsd;
       const pnlPct = netFlowsUsd > 0 ? pnlUsd / netFlowsUsd : null;
 
+      const benchmarkUsd = await benchmarkValue({ pool, cfg, botId: bot.bot_id, now });
+      const alphaPct =
+        benchmarkUsd !== null && benchmarkUsd > 0
+          ? (equityUsd - benchmarkUsd) / benchmarkUsd
+          : null;
+
       await pool.query(
         `insert into bot_registry.bot_stats
-           (bot_id, total_trades, total_pnl_usd, total_pnl_pct, equity_usd, net_flows_usd)
-         values ($1, $2, $3, $4, $5, $6)
+           (bot_id, total_trades, total_pnl_usd, total_pnl_pct, equity_usd, net_flows_usd,
+            benchmark_usd, vs_benchmark_pct)
+         values ($1, $2, $3, $4, $5, $6, $7, $8)
          on conflict (bot_id) do update set
-           total_trades  = excluded.total_trades,
-           total_pnl_usd = excluded.total_pnl_usd,
-           total_pnl_pct = excluded.total_pnl_pct,
-           equity_usd    = excluded.equity_usd,
-           net_flows_usd = excluded.net_flows_usd`,
+           total_trades     = excluded.total_trades,
+           total_pnl_usd    = excluded.total_pnl_usd,
+           total_pnl_pct    = excluded.total_pnl_pct,
+           equity_usd       = excluded.equity_usd,
+           net_flows_usd    = excluded.net_flows_usd,
+           benchmark_usd    = excluded.benchmark_usd,
+           vs_benchmark_pct = excluded.vs_benchmark_pct`,
         [
           bot.bot_id,
           Number(trades.rows[0].n),
@@ -127,10 +197,12 @@ export async function computeStats({ client, pool, viemClient, cfg, log = consol
           pnlPct === null ? null : pnlPct.toFixed(8),
           equityUsd.toFixed(6),
           netFlowsUsd.toFixed(6),
+          benchmarkUsd === null ? null : benchmarkUsd.toFixed(6),
+          alphaPct === null ? null : alphaPct.toFixed(8),
         ]
       );
       log(
-        `[stats] bot ${bot.bot_id}: equity=$${equityUsd.toFixed(2)} flows=$${netFlowsUsd.toFixed(2)} pnl=$${pnlUsd.toFixed(2)}${pnlPct !== null ? ` (${(pnlPct * 100).toFixed(1)}%)` : ""}`
+        `[stats] bot ${bot.bot_id}: equity=$${equityUsd.toFixed(2)} flows=$${netFlowsUsd.toFixed(2)} pnl=$${pnlUsd.toFixed(2)}${pnlPct !== null ? ` (${(pnlPct * 100).toFixed(1)}%)` : ""}${benchmarkUsd !== null ? ` | bench=$${benchmarkUsd.toFixed(2)} alpha=${(alphaPct * 100).toFixed(1)}%` : ""}`
       );
       updated++;
     } catch (e) {

@@ -30,6 +30,18 @@ export function fmtPnl(pnlUsd: number | null, pnlPct: number | null): PnlView {
   };
 }
 
+/** Alpha vs benchmark as a signed colored percentage. */
+export function fmtAlpha(alphaPct: number | null): { text: string; className: string } {
+  if (alphaPct === null || alphaPct === undefined) {
+    return { text: "—", className: "text-zinc-600" };
+  }
+  const sign = alphaPct >= 0 ? "+" : "−";
+  return {
+    text: `${sign}${Math.abs(alphaPct * 100).toFixed(1)}%`,
+    className: alphaPct >= 0 ? "text-emerald-400" : "text-red-400",
+  };
+}
+
 export function fmtDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", {

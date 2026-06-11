@@ -32,6 +32,9 @@ export type BotListEntry = {
   equity_usd: number | null;
   net_flows_usd: number | null;
   trades_count: number | null;
+  // Alpha vs HODL 50/50 cbBTC/WETH bought at each deposit.
+  benchmark_usd: number | null;
+  alpha_pct: number | null;
 };
 
 export type BotOverview = BotListEntry & {

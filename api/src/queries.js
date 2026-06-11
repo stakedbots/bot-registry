@@ -36,6 +36,9 @@ function statsFields(row) {
     equity_usd: row?.equity_usd != null ? Number(row.equity_usd) : null,
     net_flows_usd: row?.net_flows_usd != null ? Number(row.net_flows_usd) : null,
     trades_count: row?.total_trades != null ? Number(row.total_trades) : null,
+    // Alpha vs HODL 50/50 cbBTC/WETH from each deposit, chain-derived.
+    benchmark_usd: row?.benchmark_usd != null ? Number(row.benchmark_usd) : null,
+    alpha_pct: row?.vs_benchmark_pct != null ? Number(row.vs_benchmark_pct) : null,
   };
 }
 

@@ -5,6 +5,7 @@ import {
   shortAddr,
   fmtUsdc,
   fmtPnl,
+  fmtAlpha,
   fmtDateTime,
   fmtRelative,
   basescanAddr,
@@ -68,7 +69,17 @@ export default async function BotDetailPage({
         </div>
       </header>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-10">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
+        <Stat
+          label="Alpha vs HODL"
+          value={fmtAlpha(bot.alpha_pct).text}
+          valueClass={fmtAlpha(bot.alpha_pct).className}
+          hint={
+            bot.benchmark_usd !== null
+              ? `HODL 50/50 of same deposits = $${fmtUsdc(bot.benchmark_usd)}`
+              : "needs priced deposit history"
+          }
+        />
         <Stat
           label="PnL"
           value={fmtPnl(bot.pnl_usd, bot.pnl_pct).text}
