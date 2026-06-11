@@ -5,14 +5,21 @@
  *
  *   equity_usd    = Σ (current ERC20 balance of linked wallets × price now)
  *                   + stake locked in the Registry (USDC)
- *   net_flows_usd = Σ amount_usd(in) − Σ amount_usd(out)   (wallet_transfers)
+ *   net_flows_usd = Σ amount_usd(in) − Σ amount_usd(out)   (wallet_transfers,
+ *                   EXCLUDING legs whose counterparty is the Registry)
  *   pnl_usd       = equity_usd − net_flows_usd
  *   pnl_pct       = pnl_usd / net_flows_usd                 (null if flows ≤ 0)
  *
+ * Registry legs must be excluded from flows because the stake stays in equity:
+ * counting the stake-out as an outflow while also crediting the stake in
+ * equity fabricates +stake of phantom PnL (deposit→stake nets to zero flows).
+ * With the exclusion, staking and withdrawing are PnL-neutral and a slash is
+ * a real loss (equity drops, flows unchanged).
+ *
  * Native ETH is excluded on both sides: ETH deposits aren't ERC20 Transfers so
- * they never enter net_flows, and the gas tank isn't trading capital. The
- * stake-out transfer to the Registry is cancelled by adding the stake back
- * into equity — staking and withdrawing are PnL-neutral, slashing is a loss.
+ * they never enter net_flows, and the gas tank isn't trading capital.
+ * Swap legs (in+out within one tx) cancel each other, so net_flows reduces to
+ * deposits − external spends — the bot's true cost basis.
  *
  * total_trades counts txs where the wallet had transfers in BOTH directions
  * (a swap), so plain deposits/withdrawals don't inflate it.
@@ -46,8 +53,9 @@ export async function computeStats({ client, pool, viemClient, cfg, log = consol
                                     then coalesce(amount_usd, 0)
                                     else -coalesce(amount_usd, 0) end), 0) as net_flows
              from bot_registry.wallet_transfers
-            where bot_id = $1 and chain = $2`,
-          [bot.bot_id, cfg.chainName]
+            where bot_id = $1 and chain = $2
+              and (counterparty is null or lower(counterparty) <> lower($3))`,
+          [bot.bot_id, cfg.chainName, cfg.registryAddress]
         ),
         pool.query(
           `select count(*) as n from (
@@ -71,12 +79,23 @@ export async function computeStats({ client, pool, viemClient, cfg, log = consol
       const now = new Date();
       for (const { token_address } of tokens.rows) {
         for (const wallet of bot.wallets) {
-          const bal = await viemClient.readContract({
-            address: token_address,
-            abi: ERC20_BALANCE,
-            functionName: "balanceOf",
-            args: [wallet],
-          });
+          // Public RPCs rate-limit aggressively right after the getLogs sweep —
+          // retry with backoff instead of dropping the bot's stats for 5 min.
+          let bal = null;
+          for (let attempt = 0; ; attempt++) {
+            try {
+              bal = await viemClient.readContract({
+                address: token_address,
+                abi: ERC20_BALANCE,
+                functionName: "balanceOf",
+                args: [wallet],
+              });
+              break;
+            } catch (e) {
+              if (attempt >= 4) throw e;
+              await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+            }
+          }
           if (bal === 0n) continue;
           const info = await getTokenInfo(client, viemClient, cfg.chainName, token_address);
           const price = await getUsdPrice(cfg.chainName, token_address, now);
