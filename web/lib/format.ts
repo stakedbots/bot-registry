@@ -10,6 +10,26 @@ export function fmtUsdc(usdc: number): string {
   }).format(usdc);
 }
 
+export type PnlView = { text: string; pct: string | null; className: string };
+
+/** Render PnL with sign + color. null → muted em-dash (stats not computed yet). */
+export function fmtPnl(pnlUsd: number | null, pnlPct: number | null): PnlView {
+  if (pnlUsd === null || pnlUsd === undefined) {
+    return { text: "—", pct: null, className: "text-zinc-600" };
+  }
+  const sign = pnlUsd >= 0 ? "+" : "−";
+  const text = `${sign}$${fmtUsdc(Math.abs(pnlUsd))}`;
+  const pct =
+    pnlPct === null || pnlPct === undefined
+      ? null
+      : `${pnlUsd >= 0 ? "+" : "−"}${Math.abs(pnlPct * 100).toFixed(1)}%`;
+  return {
+    text,
+    pct,
+    className: pnlUsd >= 0 ? "text-emerald-400" : "text-red-400",
+  };
+}
+
 export function fmtDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", {

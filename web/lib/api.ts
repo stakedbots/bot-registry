@@ -26,6 +26,12 @@ export type BotListEntry = {
   transfers_count: number;
   volume_usd: number;
   last_transfer_at: string | null;
+  // Derived by the indexer (mark-to-market); null until the first stats pass.
+  pnl_usd: number | null;
+  pnl_pct: number | null;
+  equity_usd: number | null;
+  net_flows_usd: number | null;
+  trades_count: number | null;
 };
 
 export type BotOverview = BotListEntry & {

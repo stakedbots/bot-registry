@@ -4,6 +4,7 @@ import { getBot, apiUrl } from "@/lib/api";
 import {
   shortAddr,
   fmtUsdc,
+  fmtPnl,
   fmtDateTime,
   fmtRelative,
   basescanAddr,
@@ -67,17 +68,27 @@ export default async function BotDetailPage({
         </div>
       </header>
 
-      <div className="grid sm:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-10">
+        <Stat
+          label="PnL"
+          value={fmtPnl(bot.pnl_usd, bot.pnl_pct).text}
+          valueClass={fmtPnl(bot.pnl_usd, bot.pnl_pct).className}
+          hint={
+            bot.pnl_usd !== null
+              ? `${fmtPnl(bot.pnl_usd, bot.pnl_pct).pct ?? ""} mark-to-market, on-chain derived`.trim()
+              : "computed after first indexed activity"
+          }
+        />
+        <Stat
+          label="Equity"
+          value={bot.equity_usd !== null ? `$${fmtUsdc(bot.equity_usd)}` : "—"}
+          hint="current holdings + stake"
+        />
         <Stat label="Stake" value={`${fmtUsdc(bot.stake_amount_usdc)} USDC`} />
         <Stat
           label="Trades"
-          value={String(bot.transfers_count)}
+          value={String(bot.trades_count ?? bot.transfers_count)}
           hint={bot.last_transfer_at ? `last ${fmtRelative(bot.last_transfer_at)}` : "no activity yet"}
-        />
-        <Stat
-          label="Volume"
-          value={bot.volume_usd > 0 ? `$${fmtUsdc(bot.volume_usd)}` : "—"}
-          hint="cumulative USD across all transfers"
         />
         <Stat
           label="Missions"
@@ -184,17 +195,21 @@ function Stat({
   label,
   value,
   hint,
+  valueClass,
 }: {
   label: string;
   value: string;
   hint?: string;
+  valueClass?: string;
 }) {
   return (
     <div className="rounded-lg border border-[var(--border)] bg-zinc-950/40 p-4">
       <div className="text-xs uppercase tracking-wider text-zinc-500">
         {label}
       </div>
-      <div className="mt-1 text-2xl font-mono">{value}</div>
+      <div className={`mt-1 text-2xl font-mono ${valueClass ?? ""}`}>
+        {value}
+      </div>
       {hint && <div className="mt-1 text-xs text-zinc-500">{hint}</div>}
     </div>
   );

@@ -12,6 +12,7 @@ import { makeClient, fetchLogs, getBlockTimestamps } from "./chain.js";
 import { makePool, getCursor, setCursor, insertContractEvent } from "./db.js";
 import { HANDLERS } from "./handlers.js";
 import { indexTransfers } from "./transfers.js";
+import { computeStats } from "./stats.js";
 
 const args = new Set(process.argv.slice(2));
 const ONCE = args.has("--once");
@@ -99,6 +100,12 @@ async function runOnce(pool, viemClient, cfg) {
     // After registry events, sweep wallet transfers (independent cursor).
     const tr = await indexTransfers({ client, pool, viemClient, cfg, dry: DRY });
     console.log(`[transfers] processed ${tr.processed} records up to block ${tr.head}`);
+
+    // Refresh derived per-bot stats (mark-to-market PnL).
+    if (!DRY) {
+      const st = await computeStats({ client, pool, viemClient, cfg });
+      console.log(`[stats] updated ${st.updated} bots`);
+    }
   } finally {
     if (client) client.release();
   }

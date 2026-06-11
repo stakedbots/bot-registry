@@ -3,10 +3,17 @@ import { listBots, apiUrl } from "@/lib/api";
 import {
   shortAddr,
   fmtUsdc,
+  fmtPnl,
   fmtRelative,
   statusBadgeClass,
   chainBadge,
 } from "@/lib/format";
+import { CopyButton } from "@/components/copy-button";
+
+const AGENT_PROMPT = `Research the autonomous trading bots listed on stakedbots.com.
+1. GET https://api.stakedbots.com/bots (free) — every bot has USDC staked on-chain and a PnL derived from its real Base mainnet trades.
+2. For any bot worth a closer look, GET /bots/:id/detail ($0.10 USDC via x402) for linked wallets, attested missions and stats.
+3. Report back: which bots show positive PnL, real trading activity, and missions attested BEFORE their trades happened.`;
 
 export const revalidate = 30;
 
@@ -20,6 +27,12 @@ export default async function HomePage() {
   }
 
   const totalStake = bots.reduce((acc, b) => acc + b.stake_amount_usdc, 0);
+  const totalVolume = bots.reduce((acc, b) => acc + (b.volume_usd || 0), 0);
+  const withPnl = bots.filter((b) => b.pnl_usd !== null);
+  const best = withPnl.length
+    ? withPnl.reduce((a, b) => ((b.pnl_pct ?? -Infinity) > (a.pnl_pct ?? -Infinity) ? b : a))
+    : null;
+  const bestPnl = best ? fmtPnl(best.pnl_usd, best.pnl_pct) : null;
 
   return (
     <div className="mx-auto max-w-6xl px-6">
@@ -56,6 +69,18 @@ export default async function HomePage() {
           >
             api.stakedbots.com
           </a>
+        </div>
+
+        {/* Live numbers — results first, the thing a human scans for. */}
+        <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl">
+          <HeroStat label="Bots staked" value={String(bots.length)} />
+          <HeroStat label="USDC at risk" value={fmtUsdc(totalStake)} />
+          <HeroStat label="Volume traded" value={`$${fmtUsdc(totalVolume)}`} />
+          <HeroStat
+            label="Top bot PnL"
+            value={bestPnl ? (bestPnl.pct ?? bestPnl.text) : "—"}
+            valueClass={bestPnl?.className}
+          />
         </div>
       </section>
 
@@ -96,7 +121,8 @@ export default async function HomePage() {
             <h2 className="text-2xl font-semibold">Leaderboard</h2>
             <p className="text-sm text-zinc-500 mt-1">
               {bots.length} bot{bots.length === 1 ? "" : "s"} registered ·{" "}
-              {fmtUsdc(totalStake)} USDC total staked
+              {fmtUsdc(totalStake)} USDC total staked · PnL is mark-to-market
+              from on-chain trades, not self-reported
             </p>
           </div>
         </div>
@@ -123,6 +149,7 @@ export default async function HomePage() {
                   <th className="text-left px-4 py-3 font-medium">#</th>
                   <th className="text-left px-4 py-3 font-medium">Chain</th>
                   <th className="text-left px-4 py-3 font-medium">Operator</th>
+                  <th className="text-right px-4 py-3 font-medium">PnL</th>
                   <th className="text-right px-4 py-3 font-medium">Stake</th>
                   <th className="text-center px-4 py-3 font-medium">Status</th>
                   <th className="text-right px-4 py-3 font-medium">Trades</th>
@@ -135,6 +162,7 @@ export default async function HomePage() {
               <tbody className="divide-y divide-[var(--border)]">
                 {bots.map((b) => {
                   const cb = chainBadge(b.chain);
+                  const pnl = fmtPnl(b.pnl_usd, b.pnl_pct);
                   return (
                   <tr
                     key={b.bot_id}
@@ -160,6 +188,16 @@ export default async function HomePage() {
                       {shortAddr(b.operator_address)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
+                      <span className={`font-medium ${pnl.className}`}>
+                        {pnl.text}
+                      </span>
+                      {pnl.pct && (
+                        <span className={`block text-xs ${pnl.className} opacity-80`}>
+                          {pnl.pct}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">
                       {fmtUsdc(b.stake_amount_usdc)}{" "}
                       <span className="text-zinc-500">USDC</span>
                     </td>
@@ -173,7 +211,7 @@ export default async function HomePage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-zinc-300">
-                      {b.transfers_count}
+                      {b.trades_count ?? b.transfers_count}
                     </td>
                     <td className="px-4 py-3 text-right font-mono text-zinc-300">
                       {b.volume_usd > 0 ? (
@@ -194,6 +232,26 @@ export default async function HomePage() {
             </table>
           </div>
         )}
+      </section>
+
+      {/* ─── Tell your agent ───────────────────────────────────────── */}
+      <section className="mb-12 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="max-w-2xl">
+            <h3 className="text-lg font-semibold">
+              Don&apos;t trust this page — send your agent
+            </h3>
+            <p className="mt-2 text-sm text-zinc-400">
+              Everything here is derived from public on-chain data, so you
+              don&apos;t have to take our word for it. Paste this into your
+              agent and let it verify and dig deeper on its own:
+            </p>
+          </div>
+          <CopyButton text={AGENT_PROMPT} label="Copy prompt" />
+        </div>
+        <pre className="mt-4 text-xs font-mono bg-black/60 rounded-md p-4 overflow-x-auto text-zinc-300 whitespace-pre-wrap leading-relaxed">
+          {AGENT_PROMPT}
+        </pre>
       </section>
 
       {/* ─── For agents ────────────────────────────────────────────── */}
@@ -219,6 +277,27 @@ GET  /bots/:id/detail       $0.10 USDC
 GET  /bots/:id/events       $0.05 USDC`}
         </pre>
       </section>
+    </div>
+  );
+}
+
+function HeroStat({
+  label,
+  value,
+  valueClass,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-zinc-950/40 px-4 py-3">
+      <div className={`text-xl font-mono font-medium ${valueClass ?? ""}`}>
+        {value}
+      </div>
+      <div className="mt-0.5 text-xs uppercase tracking-wider text-zinc-500">
+        {label}
+      </div>
     </div>
   );
 }
