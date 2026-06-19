@@ -13,6 +13,7 @@ import { makePool, getCursor, setCursor, insertContractEvent } from "./db.js";
 import { HANDLERS } from "./handlers.js";
 import { indexTransfers } from "./transfers.js";
 import { indexRevenue } from "./revenue.js";
+import { notifyNewRevenue } from "./notify.js";
 import { computeStats } from "./stats.js";
 
 const args = new Set(process.argv.slice(2));
@@ -105,6 +106,12 @@ async function runOnce(pool, viemClient, cfg) {
     // Sweep API revenue: USDC paid to PAY_TO via x402 (independent cursor).
     const rev = await indexRevenue({ client, pool, viemClient, cfg, dry: DRY });
     console.log(`[revenue] processed ${rev.processed} payments up to block ${rev.head}`);
+
+    // Push Telegram alerts for new payments to the dedicated revenue wallet.
+    if (!DRY) {
+      const n = await notifyNewRevenue({ pool });
+      if (n.notified) console.log(`[notify] ${n.notified} payment(s) notified`);
+    }
 
     // Refresh derived per-bot stats (mark-to-market PnL).
     if (!DRY) {
