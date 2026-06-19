@@ -12,6 +12,7 @@ import { makeClient, fetchLogs, getBlockTimestamps } from "./chain.js";
 import { makePool, getCursor, setCursor, insertContractEvent } from "./db.js";
 import { HANDLERS } from "./handlers.js";
 import { indexTransfers } from "./transfers.js";
+import { indexRevenue } from "./revenue.js";
 import { computeStats } from "./stats.js";
 
 const args = new Set(process.argv.slice(2));
@@ -100,6 +101,10 @@ async function runOnce(pool, viemClient, cfg) {
     // After registry events, sweep wallet transfers (independent cursor).
     const tr = await indexTransfers({ client, pool, viemClient, cfg, dry: DRY });
     console.log(`[transfers] processed ${tr.processed} records up to block ${tr.head}`);
+
+    // Sweep API revenue: USDC paid to PAY_TO via x402 (independent cursor).
+    const rev = await indexRevenue({ client, pool, viemClient, cfg, dry: DRY });
+    console.log(`[revenue] processed ${rev.processed} payments up to block ${rev.head}`);
 
     // Refresh derived per-bot stats (mark-to-market PnL).
     if (!DRY) {
