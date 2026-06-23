@@ -107,6 +107,56 @@ export async function listBots() {
   });
 }
 
+// Friendly display name derived from the manifest uri (e.g.
+// "inline:momentum-det-self-v1" → "momentum-det"). Falls back to the raw uri.
+function displayName(manifestUri) {
+  if (!manifestUri) return null;
+  return String(manifestUri)
+    .replace(/^inline:/, "")
+    .replace(/-self-v\d+$/, "")
+    .trim() || manifestUri;
+}
+
+// Ranked leaderboard built on top of listBots(): sorts by alpha vs HODL
+// (nulls last), stamps a rank, and computes a registry-wide summary. This is
+// the paid discovery entry point — an agent pays once to see the whole field
+// ranked, then drills into a specific bot's detail/events.
+export async function getLeaderboard() {
+  const bots = await listBots();
+  const ranked = [...bots].sort((a, b) => {
+    const av = a.alpha_pct, bv = b.alpha_pct;
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1; // nulls last
+    if (bv == null) return -1;
+    return bv - av; // highest alpha first
+  });
+
+  let totalStake = 0, totalVolume = 0, totalTrades = 0;
+  let best = null;
+  for (const b of ranked) {
+    totalStake += Number(b.stake_amount_usdc ?? 0);
+    totalVolume += Number(b.volume_usd ?? 0);
+    totalTrades += Number(b.trades_count ?? 0);
+    if (b.alpha_pct != null && (best == null || b.alpha_pct > best.alpha_pct)) best = b;
+  }
+
+  return {
+    summary: {
+      total_bots: ranked.length,
+      total_stake_usdc: Number(totalStake.toFixed(2)),
+      total_volume_usd: Number(totalVolume.toFixed(2)),
+      total_trades: totalTrades,
+      best_alpha_pct: best ? best.alpha_pct : null,
+      best_alpha_bot_id: best ? best.bot_id : null,
+    },
+    bots: ranked.map((b, i) => ({
+      rank: i + 1,
+      name: displayName(b.manifest_uri),
+      ...b,
+    })),
+  };
+}
+
 export async function getBot(botId) {
   const [main, tStats, stats, wCount, mCount] = await Promise.all([
     supabase

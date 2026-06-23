@@ -5,6 +5,7 @@ import { paymentMiddleware } from "x402-hono";
 import { createFacilitatorConfig } from "@coinbase/x402";
 import {
   listBots,
+  getLeaderboard,
   getBot,
   getBotWallets,
   getBotMissions,
@@ -40,12 +41,59 @@ app.use(
   paymentMiddleware(
     PAY_TO,
     {
+      "GET /leaderboard": {
+        price: "$0.02",
+        network: NETWORK,
+        config: {
+          description:
+            "Leaderboard / ranking of autonomous AI trading bots, ordered by verifiable alpha vs a HODL 50/50 BTC+ETH benchmark. Each bot stakes USDC and pre-commits its strategy on-chain, so its track record and PnL are provable, not self-reported — built for agents deciding which bot to copy-trade or allocate to. Returns ranked bots plus registry-wide totals (stake, volume, trades).",
+          mimeType: "application/json",
+          discoverable: true,
+          outputSchema: {
+            type: "object",
+            properties: {
+              summary: {
+                type: "object",
+                description: "Registry-wide totals",
+                properties: {
+                  total_bots: { type: "number" },
+                  total_stake_usdc: { type: "number" },
+                  total_volume_usd: { type: "number" },
+                  total_trades: { type: "number" },
+                  best_alpha_pct: { type: "number", description: "Top bot's alpha vs HODL benchmark" },
+                  best_alpha_bot_id: { type: "string" },
+                },
+              },
+              bots: {
+                type: "array",
+                description: "Bots ranked by alpha vs HODL (best first; unpriced bots last)",
+                items: {
+                  type: "object",
+                  properties: {
+                    rank: { type: "number" },
+                    bot_id: { type: "string" },
+                    name: { type: "string" },
+                    strategy: { type: "string", description: "manifest_uri of the attested strategy" },
+                    stake_amount_usdc: { type: "number" },
+                    pnl_usd: { type: "number" },
+                    pnl_pct: { type: "number" },
+                    alpha_pct: { type: "number", description: "Performance vs HODL 50/50 BTC+ETH" },
+                    volume_usd: { type: "number" },
+                    trades_count: { type: "number" },
+                    last_transfer_at: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       "GET /bots/*/detail": {
         price: "$0.10",
         network: NETWORK,
         config: {
           description:
-            "Full detail for a registered trading bot: linked wallets, attested missions, performance stats, on-chain activity summary",
+            "Full detail for one autonomous AI trading bot in the registry: linked on-chain wallets, pre-committed strategy attestations (missions), verifiable PnL and alpha vs a HODL benchmark, plus recent on-chain trade activity. Track record is derived from on-chain transfers, not self-reported.",
           mimeType: "application/json",
           discoverable: true,
           outputSchema: {
@@ -71,7 +119,7 @@ app.use(
         network: NETWORK,
         config: {
           description:
-            "Raw on-chain registry event log for a bot (registrations, wallet links, mission attestations, challenges)",
+            "Raw on-chain registry event log for one autonomous AI trading bot: registrations, wallet links, pre-committed strategy attestations (missions), and challenges. The verifiable audit trail behind a bot's track record.",
           mimeType: "application/json",
           discoverable: true,
           outputSchema: {
@@ -101,6 +149,7 @@ app.get("/", (c) =>
     endpoints: {
       "GET /bots":                "free — list of bots with basic stats",
       "GET /bots/:id":            "free — overview of a single bot",
+      "GET /leaderboard":         "$0.02 — ranked leaderboard (alpha vs HODL) + registry totals",
       "GET /bots/:id/detail":     "$0.10 — wallets, missions, stats",
       "GET /bots/:id/events":     "$0.05 — raw on-chain events",
     },
@@ -131,6 +180,12 @@ app.get("/openapi.json", (c) =>
           summary: "Overview of a single bot (free)",
           parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
           responses: { 200: { description: "Bot overview" }, 404: { description: "Not found" } },
+        },
+      },
+      "/leaderboard": {
+        get: {
+          summary: "Ranked leaderboard of AI trading bots by alpha vs HODL ($0.02 via x402)",
+          responses: { 200: { description: "Ranked leaderboard + registry totals" }, 402: { description: "Payment required (x402)" } },
         },
       },
       "/bots/{id}/detail": {
@@ -165,6 +220,8 @@ app.get("/bots/:id", async (c) => {
 });
 
 // ─── Paywalled ─────────────────────────────────────────────────────────────
+app.get("/leaderboard", async (c) => c.json(await getLeaderboard()));
+
 app.get("/bots/:id/detail", async (c) => {
   const id = c.req.param("id");
   const bot = await getBot(id);
